@@ -3,6 +3,7 @@ import numpy as np
 from random import choices, sample, randint
 from faker import Faker
 from openpyxl.utils import get_column_letter
+from openpyxl import Workbook
 
 # 初始化工具
 fake = Faker('zh_CN')
@@ -29,19 +30,26 @@ distributions = {
 }
 
 # ================== 生成函数 ==================
+def weighted_choice(options, weights, max_choices=3):
+    """加权随机选择（修正后的版本）"""
+    weighted_list = []
+    for opt, weight in zip(options, weights):
+        weighted_list.extend([opt] * weight)
+    return sample(weighted_list, min(max_choices, len(weighted_list)))
+
 def generate_survey_data(num_records):
     data = []
     
-    for _ in range(num_records):
+    for i in range(num_records):
         record = {}
         
         # 生成基础信息
-        record["序号"] = len(data) + 1
+        record["序号"] = i + 1
         record["提交答卷时间"] = fake.date_time_between(start_date="-30d").strftime("%Y/%m/%d %H:%M:%S")
         record["所用时间"] = randint(60, 600)
         record["来源"] = choices(["微信", "手机提交"], weights=[80, 20])[0]
         record["来源详情"] = "N/A"
-        record["来自IP"] = fake.ipv4() + "(广东-潮州)"  # 固定为潮州IP
+        record["来自IP"] = f"{fake.ipv4()}({fake.province()}-{fake.city()})"
         
         # 生成问卷答案
         generate_basic_info(record)
@@ -72,65 +80,43 @@ def generate_education_views(record):
     for opt in ["知识学习", "创造力", "规则意识", "情绪管理", "运动能力", "艺术兴趣", "其他"]:
         record[f"1 ({opt})"] = 1 if opt in abilities else 0
 
-def weighted_choice(options, weights, max_choices=3):
-    """根据权重生成多选选项"""
-    total = sum(weights)
-    if total == 0:
-        return []
-    normalized = [w / total for w in weights]
-    selected = []
-    for _ in range(max_choices):
-        selected_opt = choices(options, weights=normalized, k=1)[0]
-        selected.append(selected_opt)
-    return list(set(selected))  # 去重确保每个选项只出现一次
-
 def generate_parenting_methods(record):
-    """生成教育方法部分"""
-    # 长期发展期待（多选）
-    expectations = weighted_choice(
-        ["考上名牌大学", "有稳定的高收入工作", "具备良好的道德品质", 
-         "身心健康，快乐成长", "拥有独立自主的能力", "发展广泛的兴趣爱好或特长"],
-        [30, 25, 65, 78, 58, 20],
-        max_choices=3
-    )
-    for opt in ["考上名牌大学", "有稳定的高收入工作", "具备良好的道德品质", 
-                "身心健康，快乐成长", "拥有独立自主的能力", "发展广泛的兴趣爱好或特长"]:
-        record[f"2 ({opt})"] = 1 if opt in expectations else 0
-
-    # 儿童观评分
-    record["3.游戏是幼儿学习的主要方式，应与知识学习同等重要。"] = randint(1,5)
-    record["4.孩子天生具有好奇心，家长应鼓励其自由探索。"] = randint(1,5)
-    record["5. 在学前期提前学习小学知识会抑制孩子的创造力。"] = randint(1,5)
+    """生成教育方法数据"""
+    record["3.游戏是幼儿学习的主要方式..."] = choices([1,2,3,4,5], weights=[2,4,14,35,45])[0]
+    record["4.孩子天生具有好奇心..."] = choices([1,2,3,4,5], weights=[1,3,10,30,56])[0]
 
 def generate_anxiety_data(record):
-    """生成焦虑相关数据"""
-    # 教育焦虑程度
-    record["13.您是否经常因孩子的教育问题感到焦虑?"] = randint(1,5)
-    
-    # 焦虑来源（多选）
-    anxiety_sources = weighted_choice(
-        ["孩子表现不如同龄人", "兴趣班选择困难", "家庭教育时间不足", "幼小衔接压力"],
-        [12, 35, 48, 62],
-        max_choices=3
-    )
-    for opt in ["孩子表现不如同龄人", "兴趣班选择困难", "家庭教育时间不足", "幼小衔接压力"]:
-        record[f"14 ({opt})"] = 1 if opt in anxiety_sources else 0
+    """生成教育焦虑数据"""
+    record["13.您是否经常因孩子的教育问题感到焦虑?"] = choices([1,2,3,4,5], weights=[5,10,25,30,30])[0]
 
 def format_excel(df):
-    """格式化Excel输出"""
-    writer = pd.ExcelWriter("survey_data.xlsx", engine='openpyxl')
-    df.to_excel(writer, index=False)
+    """格式化Excel输出（优化列宽）"""
+    with pd.ExcelWriter("家长教育问卷数据.xlsx", engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='问卷数据')
+        
+        # 获取工作表对象
+        worksheet = writer.sheets['问卷数据']
+        
+        # 设置自适应列宽
+        for col_idx, col_name in enumerate(df.columns, 1):
+            col_letter = get_column_letter(col_idx)
+            max_len = max(
+                df[col_name].astype(str).map(len).max(),  # 内容最大长度
+                len(str(col_name))  # 列标题长度
+            worksheet.column_dimensions[col_letter].width = min(max_len + 2, 50)  # 限制最大宽度
+            
+        # 冻结首行
+        worksheet.freeze_panes = "A2"
     
-    # 设置自适应列宽
-    worksheet = writer.sheets['Sheet1']
-    for col in df.columns:
-        max_length = max(df[col].astype(str).map(len).max(), len(col))
-        worksheet.column_dimensions[get_column_letter(df.columns.get_loc(col)+1)].width = max_length + 2
-    
-    writer.save()
     return df
 
 # ================== 执行生成 ==================
 if __name__ == "__main__":
-    df = generate_survey_data(312)
-    print("问卷数据生成完成，保存至 survey_data.xlsx")
+    print("正在生成问卷数据...")
+    try:
+        df = generate_survey_data(312)
+        print("生成成功！文件已保存为：家长教育问卷数据.xlsx")
+        print("\n数据分布验证：")
+        print(df["1.您是孩子的:"].value_counts(normalize=True).mul(100).round(1))
+    except Exception as e:
+        print(f"生成失败，错误信息：{str(e)}")
