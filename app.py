@@ -33,4 +33,4 @@ if st.button('生成'):
     df = generate_data(num)
     st.write(df.head())
     csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button('下载CSV', data=csv, file_name='data.csv')‘’
+    st.download_button('下载CSV', data=csv, file_name='data.csv')
