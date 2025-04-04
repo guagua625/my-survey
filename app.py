@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from random import choices, randint, sample
+from random import choices, randint
 from datetime import datetime, timedelta
 import openpyxl
 from openpyxl.utils import get_column_letter
@@ -142,10 +142,9 @@ if st.button("生成数据"):
     output = st.radio("导出格式:", ["Excel (.xlsx)", "CSV (.csv)"])
     
     if output == "Excel (.xlsx)":
-        excel_buffer = pd.ExcelWriter("survey_data.xlsx", engine='openpyxl')
-        df.to_excel(excel_buffer, index=False, sheet_name='问卷数据')
-        adjust_column_width(excel_buffer, '问卷数据', df)
-        excel_buffer.close()
+        with pd.ExcelWriter("survey_data.xlsx", engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='问卷数据')
+            adjust_column_width(writer, '问卷数据', df)
         
         with open("survey_data.xlsx", "rb") as f:
             st.download_button(
