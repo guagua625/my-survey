@@ -1,107 +1,143 @@
 import pandas as pd
 import numpy as np
 from random import choices, sample, randint
+from faker import Faker
 
 # ======================
-# 数据生成配置
+# 初始化配置
 # ======================
+fake = Faker(locale='zh_CN')
 N = 120  # 总样本量
 
-# 1. 基础信息分布配置
-base_dist = {
-    "家长身份": ["母亲", "父亲", "祖父母/外祖父母", "其他亲属"],
-    "身份分布": [0.68, 0.25, 0.05, 0.02],
+# ======================
+# 问题选项配置
+# ======================
+question_config = {
+    # 基本信息
+    "Q1": ["父亲", "母亲", "祖父母/外祖父母", "其他亲属"],
+    "Q2": ["25岁及以下", "26-30岁", "31-35岁", "36-40岁", "41岁及以上"],
+    "Q3": ["初中及以下", "高中/中专", "大专", "本科", "硕士及以上"],
+    "Q4": ["公务员/事业单位", "教师", "企业职员", "自由职业", "全职家长", "个体户", "创业者", "其他"],
+    "Q5": ["3000元及以下", "3000-5000元", "5000-8000元", "8000-12000元", "12000元及以上"],
+    "Q6": ["核心家庭（仅父母与子女）", "三代同堂", "单亲家庭", "其他"],
+    "Q7": ["0-2周岁", "2-3周岁", "3-4周岁", "4-5周岁", "5-6周岁", "6周岁及以上"],
     
-    "年龄分组": ["25岁及以下", "26-30岁", "31-35岁", "36-40岁", "41岁及以上"],
-    "年龄分布": [0.03, 0.12, 0.40, 0.30, 0.15],
+    # 教育观念现状
+    "Q8": ["知识学习", "创造力", "规则意识", "情绪管理", "运动能力", "艺术兴趣", "其他"],
+    "Q9": ["考上名牌大学", "有稳定的高收入工作", "具备良好的道德品质", "身心健康，快乐成长", 
+           "拥有独立自主的能力", "发展广泛的兴趣爱好或特长", "其他"],
+    "Q10": [1, 2, 3, 4, 5],
+    "Q12": [1, 2, 3, 4, 5],  # 反向题
+    "Q13": ["耐心讲道理", "共同讨论错误原因", "取消娱乐时间", "冷处理", "批评责备", "榜样示范", "自我反思", "其他"],
+    "Q14": ["制定明确规则", "游戏互动引导", "物质奖励", "鼓励自主解决", "以身作则", "协商制定计划", "使用教辅工具", "其他"],
+    "Q15": ["完全必要", "有时必要", "视情况而定", "不太必要", "完全没必要"],
+    "Q16": ["基础学科知识", "艺术与审美能力", "自然科学探索", "社会情感技能", "传统文化与价值观", "生活实践能力", "其他"],
+    "Q17": [1, 2, 3, 4, 5],
+    "Q18": [1, 2, 3, 4, 5],
+    "Q19": ["父母说了算", "孩子说了算", "共同协商决定", "各执己见"],
+    "Q20": [1, 2, 3, 4, 5],
+    "Q21": ["孩子表现不如同龄人", "兴趣班选择困难", "家庭教育时间不足", "幼小衔接压力", "其他"],
     
-    "家庭月收入": ["3000元及以下", "3000-5000元", "5000-8000元", "8000-12000元", "12000元及以上"],
-    "收入分布": [0.20, 0.10, 0.40, 0.20, 0.10]
-}
-
-# 2. 教育观念配置
-edu_config = {
-    # 问题8：能力培养偏好（多选，最多3项）
-    "能力培养": {
-        "options": ["知识学习", "创造力", "规则意识", "情绪管理", "运动能力", "艺术兴趣", "其他"],
-        "weights": [0.35, 0.52, 0.48, 0.45, 0.28, 0.15, 0.04],
-        "max_choices": 3
-    },
-    
-    # 问题10-12：评分题分布（1-5分）
-    "游戏重要性评分": [0.02, 0.04, 0.14, 0.35, 0.45],  # 完全不同意(1分)到完全同意(5分)
-    "提前学习反向评分": [0.15, 0.25, 0.30, 0.20, 0.10]  # 需要反向计分
+    # 影响因素
+    "Q22": ["书籍/期刊", "幼儿园指导", "抖音/小红书等平台", "亲友经验", "自我摸索"],
+    "Q23": ["经常", "偶尔", "很少", "从未"],
+    "Q24": ["严父慈母", "学而优则仕", "男孩应有男孩样", "女孩要文静", "棍棒底下出孝子", "万般皆下品", "养不教父之过", "均不认同"],
+    "Q25": ["<1小时", "1-3小时", "3-5小时", ">5小时"],
+    "Q26": ["非常大", "较大", "一般", "较小", "无影响"]
 }
 
 # ======================
-# 核心数据生成函数
+# 数据分布配置
+# ======================
+distribution_config = {
+    # 基本信息
+    "Q1_weights": [0.25, 0.68, 0.05, 0.02],
+    "Q2_weights": [0.03, 0.12, 0.40, 0.30, 0.15],
+    "Q3_weights": [0.05, 0.20, 0.25, 0.45, 0.05],
+    "Q4_weights": [0.10, 0.15, 0.35, 0.10, 0.25, 0.05, 0.00, 0.15],  # 最后两个是"创业者"和"其他"
+    "Q5_weights": [0.20, 0.10, 0.40, 0.20, 0.10],
+    "Q6_weights": [0.65, 0.25, 0.08, 0.02],
+    
+    # 教育观念
+    "Q8_weights": [0.35, 0.52, 0.48, 0.45, 0.28, 0.15, 0.04],
+    "Q9_weights": [0.30, 0.25, 0.65, 0.78, 0.58, 0.20, 0.05],
+    "Q10_weights": [0.02, 0.04, 0.14, 0.35, 0.45],
+    "Q12_weights": [0.10, 0.20, 0.30, 0.25, 0.15],  # 反向题原始分布
+    "Q15_weights": [0.10, 0.65, 0.15, 0.05, 0.05],
+    "Q16_weights": [0.30, 0.15, 0.42, 0.68, 0.15, 0.55, 0.04],
+    "Q17_weights": [0.05, 0.10, 0.20, 0.25, 0.40],
+    "Q19_weights": [0.25, 0.05, 0.55, 0.15],
+    
+    # 影响因素
+    "Q22_weights": [0.40, 0.30, 0.55, 0.25, 0.20],
+    "Q23_weights": [0.20, 0.50, 0.25, 0.05],
+    "Q24_weights": [0.25, 0.30, 0.10, 0.10, 0.10, 0.10, 0.05, 0.00]
+}
+
+# ======================
+# 数据生成函数
 # ======================
 def generate_respondent():
-    """生成单个受访者数据"""
     record = {}
     
-    # 1. 生成基础信息
-    record["家长身份"] = choices(base_dist["家长身份"], weights=base_dist["身份分布"])[0]
-    record["年龄"] = choices(base_dist["年龄分组"], weights=base_dist["年龄分布"])[0]
-    record["家庭月收入"] = choices(base_dist["家庭月收入"], weights=base_dist["收入分布"])[0]
+    # 生成基本信息
+    record["填写时间"] = fake.date_time_between(start_date="-30d").strftime("%Y-%m-%d %H:%M:%S")
+    record["Q1"] = choices(question_config["Q1"], weights=distribution_config["Q1_weights"])[0]
+    record["Q2"] = choices(question_config["Q2"], weights=distribution_config["Q2_weights"])[0]
     
-    # 2. 生成教育观念数据
-    # 问题8：多选处理
-    selected = np.random.choice(
-        edu_config["能力培养"]["options"],
-        size=randint(1, edu_config["能力培养"]["max_choices"]),
-        p=np.array(edu_config["能力培养"]["weights"])/sum(edu_config["能力培养"]["weights"]),
-        replace=False
-    )
-    for opt in edu_config["能力培养"]["options"]:
-        record[f"Q8_{opt}"] = 1 if opt in selected else 0
+    # 生成多选题（使用二分编码）
+    # 问题8：能力培养偏好
+    q8_selected = sample(question_config["Q8"], 
+                        k=min(3, np.random.choice([1,2,3], p=[0.1,0.3,0.6])))
+    for opt in question_config["Q8"]:
+        record[f"Q8_{opt}"] = 1 if opt in q8_selected else 0
     
-    # 问题10：正向评分
-    record["Q10_评分"] = choices([1,2,3,4,5], weights=edu_config["游戏重要性评分"])[0]
+    # 生成评分题
+    record["Q10"] = choices(question_config["Q10"], weights=distribution_config["Q10_weights"])[0]
     
-    # 问题12：反向计分处理
-    raw_score = choices([1,2,3,4,5], weights=edu_config["提前学习反向评分"])[0]
-    record["Q12_评分"] = 6 - raw_score  # 反向计分转换
+    # 生成反向题（问题12）
+    raw_score = choices(question_config["Q12"], weights=distribution_config["Q12_weights"])[0]
+    record["Q12"] = 6 - raw_score  # 反向计分
+    
+    # 生成开放题（问题27）
+    record["Q27"] = generate_open_answer()
     
     return record
 
+def generate_open_answer():
+    """生成开放题文本"""
+    problems = ["幼小衔接压力", "兴趣班选择困难", "亲子互动时间不足"]
+    return np.random.choice(problems, p=[0.5, 0.3, 0.2]) + "：" + fake.sentence()
+
 # ======================
-# 批量生成数据
+# 生成完整数据集
 # ======================
 data = [generate_respondent() for _ in range(N)]
 df = pd.DataFrame(data)
 
 # ======================
-# 数据验证模块
+# 数据验证
 # ======================
-def validate_data(df):
-    """数据质量验证"""
-    print("=== 数据验证报告 ===")
+def validate_distribution(df):
+    print("=== 数据分布验证 ===")
     
-    # 1. 基础分布验证
-    print("\n1. 家长身份分布:")
-    print(df["家长身份"].value_counts(normalize=True).round(2))
+    # 验证家长身份分布
+    print("\n家长身份分布：")
+    print(df["Q1"].value_counts(normalize=True).round(2))
     
-    print("\n2. 年龄分布:")
-    print(df["年龄"].value_counts(normalize=True).round(2))
-    
-    # 2. 多选题验证
+    # 验证多选题比例
     q8_cols = [c for c in df.columns if c.startswith("Q8_")]
-    print("\n3. 能力培养多选比例:")
+    print("\n能力培养偏好多选比例：")
     print(df[q8_cols].mean().sort_values(ascending=False).round(2))
     
-    # 3. 评分题验证
-    print("\n4. 游戏重要性评分分布:")
-    print(df["Q10_评分"].value_counts(normalize=True).sort_index().round(2))
-    
-    print("\n5. 提前学习反向评分验证:")
-    print("原始分布:", df["Q12_评分"].value_counts(normalize=True).sort_index().round(2))
-    print("理论反向分布:", dict(zip([5,4,3,2,1], edu_config["提前学习反向评分"])))
+    # 验证反向题转换
+    print("\n提前学习抑制创造力评分分布（反向后）：")
+    print(df["Q12"].value_counts(normalize=True).sort_index().round(2))
 
-validate_data(df)
+validate_distribution(df)
 
 # ======================
-# 数据导出
+# 保存为CSV
 # ======================
-df.to_csv("questionnaire_data.csv", index=False, encoding="utf_8_sig")
-print("\n=== 数据已生成并保存为 questionnaire_data.csv ===")
+df.to_csv("问卷数据.csv", index=False, encoding="utf_8_sig")
+print("\n数据已生成并保存为：问卷数据.csv")
